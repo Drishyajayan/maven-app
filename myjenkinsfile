@@ -1,0 +1,69 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('checkout') {
+            steps {
+               git branch: 'main', url: 'https://github.com/Aseemakram19/maven-app.git'
+            }
+        }
+     stage('Build') {
+            steps {
+                echo 'Building the project...'
+                bat 'mvn clean compile'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                echo 'Running unit tests...'
+                bat 'mvn test'
+            }
+        }
+        stage('Package') {
+            steps {
+                echo 'Packaging the application...'
+                bat 'mvn clean package'
+            }
+        }
+        stage('Debug') {
+            steps {
+                echo 'Listing files in target directory...'
+                bat 'dir target'
+            }
+        }
+        stage('push docker image') {
+            steps {
+               script {
+                    // Docker image details
+                    def dockerImage = 'drishya715/maven'
+                    def dockerTag = 'latest'
+
+                    // Docker login
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        bat 'docker login -u %DOCKER_USER% -p %DOCKER_PASS%'
+                    }
+
+                    // Build the Docker image
+                    bat "docker build -t ${dockerImage}:${dockerTag} ."
+
+                    // Push the Docker image to Docker Hub
+                    bat "docker push ${dockerImage}:${dockerTag}"
+                } 
+            }
+        }
+        stage('Deploy') {
+            steps {
+                script {
+                    def dockerImage = 'drishya715/maven'
+                    def dockerTag = 'latest'
+                    def containerName = 'maven-app-container'
+                    def portMapping = '8085:8080' // Map host port 8080 to container port 8080
+
+                    // Run the container without checking for an existing container
+                    bat "docker run -d --name ${containerName} -p ${portMapping} ${dockerImage}:${dockerTag}"
+                }
+            }
+        }
+    }
+}
